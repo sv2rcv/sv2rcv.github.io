@@ -79,6 +79,11 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospac
 .confirm-btn:hover{background:rgba(59,130,246,.15);}
 .next-btn{padding:14px 28px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:var(--radius);color:white;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;}
 .next-btn:hover{transform:translateY(-1px);}
+.back-btn{padding:14px 20px;background:transparent;border:2px solid var(--border);border-radius:var(--radius);color:var(--muted);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;}
+.back-btn:hover{border-color:var(--muted);color:var(--text);}
+.back-btn:disabled{opacity:.2;cursor:not-allowed;}
+.restart-btn{padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.restart-btn:hover{border-color:var(--wrong);color:var(--wrong);}
 #screen-results{align-items:center;justify-content:center;padding:40px 20px;}
 .results-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:44px 36px;max-width:540px;width:100%;text-align:center;}
 .results-icon{font-size:60px;margin-bottom:16px;}
@@ -150,6 +155,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospac
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
     </div>
     <div class="header-score" id="live-score"></div>
+    <button class="restart-btn" onclick="restartExam()">&#8635; &#917;&#960;&#945;&#957;&#949;&#954;&#954;&#943;&#957;&#951;&#963;&#951;</button>
   </div>
   <div class="exam-body">
     <div class="q-meta"><span class="q-num" id="q-num-label"></span><span class="q-chapter-badge" id="q-chapter-badge"></span></div>
@@ -157,6 +163,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospac
     <div class="answers-list" id="answers-list"></div>
     <div class="feedback-box" id="feedback-box"></div>
     <div class="action-row">
+      <button class="back-btn" id="back-btn" onclick="prevQ()" disabled>&#8592; &#928;&#943;&#963;&#969;</button>
       <button class="confirm-btn" id="confirm-btn" onclick="confirmAnswer()" style="display:none">&#933;&#960;&#959;&#946;&#959;&#955;&#942; &#913;&#960;&#940;&#957;&#964;&#951;&#963;&#951;&#962; &#10003;</button>
       <button class="next-btn" id="next-btn" onclick="nextQ()" style="display:none"><span id="next-btn-text">&#917;&#960;&#972;&#956;&#949;&#957;&#951; &rarr;</span></button>
     </div>
@@ -189,7 +196,7 @@ var CN={
   G:'Γʹ – Εθνικό & Διεθνές Νομικό Πλαίσιο',
   D:'Δʹ – Βασικά Πρακτικά Θέματα'
 };
-var cat=null,mode='instant',EQ=[],qi=0,sc=0,ac=0,st={},pa=null;
+var cat=null,mode='instant',EQ=[],qi=0,sc=0,ac=0,st={},pa=null,UA=[];
 
 function selCat(c){
   cat=c;
@@ -216,11 +223,15 @@ function buildExam(c){
 }
 function startExam(){
   if(!cat)return;
-  EQ=buildExam(cat);qi=0;sc=0;ac=0;st={};
+  EQ=buildExam(cat);qi=0;sc=0;ac=0;st={};UA=[];
   Object.keys(DIST[cat]).forEach(function(k){st[k]={c:0,t:0};});
   showScreen('exam');
   document.getElementById('live-score').textContent=mode==='instant'?'0/0':'';
   renderQ();
+}
+function restartExam(){
+  if(!confirm('Επαναφορά εξέτασης; Οι απαντήσεις σου θα χαθούν.'))return;
+  goHome();
 }
 function renderQ(){
   var q=EQ[qi],tot=EQ.length;
@@ -232,6 +243,8 @@ function renderQ(){
   var b=document.getElementById('q-chapter-badge');
   b.textContent=CN[q.chapter]||q.chapter;
   b.className='q-chapter-badge chapter-'+q.chapter;
+  // back button state
+  document.getElementById('back-btn').disabled=(qi===0);
 
   // Image area
   var imgArea=document.getElementById('question-image-area');
@@ -284,6 +297,26 @@ function renderQ(){
   document.getElementById('confirm-btn').style.display='none';
   document.getElementById('next-btn').style.display='none';
   document.getElementById('next-btn-text').textContent=qi===EQ.length-1?'Ολοκλήρωση ✓':'Επόμενη →';
+  // Restore previously answered state
+  if(UA[qi]!==undefined){
+    var prev=UA[qi];var btns=document.querySelectorAll('.answer-btn');
+    if(mode==='instant'){
+      btns.forEach(function(b){b.disabled=true;});
+      var ok=prev===q.correct;
+      var cb=btns[prev-1];
+      if(cb){cb.classList.add(ok?'correct':'wrong');cb.querySelector('.result-badge').textContent=ok?'✓':'✗';}
+      if(!ok){var rb=btns[q.correct-1];if(rb){rb.classList.add('reveal-correct');rb.querySelector('.result-badge').textContent='✓';rb.querySelector('.result-badge').style.display='block';}}
+      var fbl=['Α','Β','Γ','Δ'],fb=document.getElementById('feedback-box');
+      fb.className='feedback-box '+(ok?'correct-fb':'wrong-fb');
+      fb.innerHTML=(ok?'✅':'❌')+' <span>'+(ok?'Σωστά! Η απάντηση είναι':'Λάθος. Η σωστή ήταν')+' η <strong>'+fbl[q.correct-1]+'</strong>.</span>';
+      fb.style.display='flex';
+      document.getElementById('next-btn').style.display='inline-block';
+    } else {
+      btns[prev-1].classList.add('selected');
+      pa=prev;
+      document.getElementById('confirm-btn').style.display='inline-block';
+    }
+  }
 }
 function pickAns(n){
   var btns=document.querySelectorAll('.answer-btn');
@@ -296,13 +329,20 @@ function confirmAnswer(){
   if(pa===null)return;
   var q=EQ[qi],n=pa,btns=document.querySelectorAll('.answer-btn');
   btns.forEach(function(b){b.disabled=true;b.classList.remove('selected');});
-  ac++;
-  if(!st[q.chapter])st[q.chapter]={c:0,t:0};
-  st[q.chapter].t++;
-  var ok=n===q.correct;
-  if(ok){sc++;st[q.chapter].c++;}
   document.getElementById('confirm-btn').style.display='none';
+
   if(mode==='instant'){
+    // Only count if not already answered
+    if(UA[qi]===undefined){
+      ac++;
+      if(!st[q.chapter])st[q.chapter]={c:0,t:0};
+      st[q.chapter].t++;
+      var ok=n===q.correct;
+      if(ok){sc++;st[q.chapter].c++;}
+    } else {
+      var ok=n===q.correct;
+    }
+    UA[qi]=n;
     var cb=btns[n-1];
     if(cb){cb.classList.add(ok?'correct':'wrong');cb.querySelector('.result-badge').textContent=ok?'✓':'✗';}
     if(!ok){var rb=btns[q.correct-1];if(rb){rb.classList.add('reveal-correct');rb.querySelector('.result-badge').textContent='✓';rb.querySelector('.result-badge').style.display='block';}}
@@ -311,15 +351,35 @@ function confirmAnswer(){
     fb.innerHTML=(ok?'✅':'❌')+' <span>'+(ok?'Σωστά! Η απάντηση είναι':'Λάθος. Η σωστή ήταν')+' η <strong>'+L[q.correct-1]+'</strong>.</span>';
     fb.style.display='flex';
     document.getElementById('live-score').textContent=sc+'/'+ac;
+    document.getElementById('next-btn').style.display='inline-block';
   } else {
+    // Final mode: store/update answer, go next
+    UA[qi]=n;
     if(btns[n-1])btns[n-1].classList.add('selected');
     nextQ();
     return;
   }
-  document.getElementById('next-btn').style.display='inline-block';
 }
 function nextQ(){qi++;if(qi>=EQ.length)showResults();else renderQ();}
+function prevQ(){
+  if(qi<=0)return;
+  qi--;
+  renderQ();
+}
 function showResults(){
+  // In final mode recalculate score from UA
+  if(mode==='final'){
+    sc=0;ac=0;st={};
+    Object.keys(DIST[cat]).forEach(function(k){st[k]={c:0,t:0};});
+    EQ.forEach(function(q,i){
+      if(UA[i]!==undefined){
+        ac++;
+        if(!st[q.chapter])st[q.chapter]={c:0,t:0};
+        st[q.chapter].t++;
+        if(UA[i]===q.correct){sc++;st[q.chapter].c++;}
+      }
+    });
+  }
   showScreen('results');
   var tot=EQ.length,pct=Math.round((sc/tot)*100),pass=pct>=80;
   document.getElementById('results-icon').textContent=pass?'&#127942;':'&#128214;';
