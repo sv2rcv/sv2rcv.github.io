@@ -286,13 +286,19 @@ document.getElementById('ssbBtn').onclick=()=>{ mode='SSB'; fmPhase=0; updateMod
 document.getElementById('usbBtn').onclick=()=>{ ssbSide='USB'; updateModeButtons(); };
 document.getElementById('lsbBtn').onclick=()=>{ ssbSide='LSB'; updateModeButtons(); };
 
-function updateModeButtons(){ /* ίδιο όπως πριν */ 
-  ['am','fm','ssb'].forEach(m=>{ document.getElementById(m+'Btn').className='mode-btn'+(mode===m.toUpperCase()?' active':''); });
-  document.getElementById('ssbControls').style.display=mode==='SSB'?'block':'none';
-  document.getElementById('usbBtn').className='ssb-btn'+(ssbSide==='USB'?' active':'');
-  document.getElementById('lsbBtn').className='ssb-btn'+(ssbSide==='LSB'?' active':'');
+function updateModeButtons(){ 
+  document.getElementById('amBtn').classList.toggle('active', mode==='AM');
+  document.getElementById('fmBtn').classList.toggle('active', mode==='FM');
+  document.getElementById('ssbBtn').classList.toggle('active', mode==='SSB');
+
+  document.getElementById('ssbControls').style.display = mode==='SSB' ? 'block' : 'none';
+  
+  document.getElementById('usbBtn').classList.toggle('active', ssbSide==='USB');
+  document.getElementById('lsbBtn').classList.toggle('active', ssbSide==='LSB');
+
   const info = document.getElementById('infoBox');
   const dt = document.getElementById('depthTitle');
+
   if(mode==='AM'){
     dt.textContent='Βάθος AM';
     info.innerHTML='<b>AM</b> — Το πλάτος του φέροντος μεταβάλλεται.<br>Φέρον + ΑΠΖ + ΚΠΖ.';
@@ -306,34 +312,31 @@ function updateModeButtons(){ /* ίδιο όπως πριν */
 }
 
 function resizeCanvas(c){
-  const dpr=window.devicePixelRatio||1;
-  // On mobile, cap canvas height so they don't dominate the screen
-  if(window.innerWidth<=900){
-    if(c===fftCanvas) c.style.height='160px';
-    else if(c===modCanvas) c.style.height='90px';
-    else c.style.height='70px';
+  const dpr = window.devicePixelRatio || 1;
+  if(window.innerWidth <= 900){
+    if(c.id === 'fftCanvas') c.style.height = '160px';
+    else if(c.id === 'modCanvas') c.style.height = '100px';
+    else c.style.height = '72px';
   } else {
-    c.style.height='';
+    c.style.height = '';
   }
-  c.width=c.offsetWidth*dpr;
-  c.height=c.offsetHeight*dpr;
-  const ctx=c.getContext('2d');
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.scale(dpr,dpr);
-  // Restore defaults that get wiped on resize
-  ctx.lineWidth=2;
-  ctx.lineCap='round';
+  c.width = c.offsetWidth * dpr;
+  c.height = c.offsetHeight * dpr;
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
 }
 
-function grid(ctx,w,h,midLine=true){ /* ίδιο */ 
+function grid(ctx,w,h,midLine=true){ 
   ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
   for(let x=0;x<w;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
   for(let y=0;y<h;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
   if(midLine){ ctx.strokeStyle='rgba(255,255,255,.1)'; ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke(); }
 }
 
-function drawWave(ctx,canvas,color,fn){ /* ίδιο */ 
-  const w=canvas.offsetWidth, h=canvas.offsetHeight;
+function drawWave(ctx,canvas,color,fn){ 
+  const w=canvas.offsetWidth || 300, h=canvas.offsetHeight || 100;
   ctx.clearRect(0,0,w,h); grid(ctx,w,h);
   ctx.strokeStyle=color;ctx.lineWidth=2; ctx.shadowColor=color;ctx.shadowBlur=10;
   ctx.beginPath();
@@ -346,14 +349,13 @@ function drawWave(ctx,canvas,color,fn){ /* ίδιο */
   ctx.stroke();ctx.shadowBlur=0;
 }
 
+// ... (οι συναρτήσεις computeDemodSpectrum, drawFFT, animate μένουν ίδιες όπως στο αρχικό)
+
 function computeDemodSpectrum(depth, fm){
   const bins=180;
   const result=new Float32Array(bins);
   if(!realAudioMode){
-    // Center the demod peak at the voice frequency
-    // For LSB the recovered voice is mirrored — shift peak to show difference
     const voiceFreqNorm = fm / 4.0;
-    // LSB demod shifts the recovered audio slightly lower visually
     const peakNorm = mode==='SSB' && ssbSide==='LSB'
       ? Math.max(0.02, voiceFreqNorm * 0.75)
       : voiceFreqNorm;
@@ -379,7 +381,7 @@ function computeDemodSpectrum(depth, fm){
 }
 
 function drawFFT(depth){
-  const w=fftCanvas.offsetWidth, h=fftCanvas.offsetHeight;
+  const w=fftCanvas.offsetWidth || 600, h=fftCanvas.offsetHeight || 220;
   ctxFFT.clearRect(0,0,w,h);
   const fm = parseFloat(voiceSlider.value)/1000;
   const fc = RF_PRESETS[carrierSlider.value].visual;
@@ -400,9 +402,7 @@ function drawFFT(depth){
   ctxFFT.fillStyle='rgba(255,209,102,.55)'; ctxFFT.fillText('RF ΦΑΣΜΑ', 8, 14);
   ctxFFT.fillStyle='rgba(0,217,255,.55)'; ctxFFT.fillText('ΑΠΟΔΙΑΜΟΡΦΩΜΕΝΟ', 8, splitY+14);
 
-  // === RF Spectrum (top) ===
   if(realAudioMode && analyser){
-    // Real audio: build spectrum from live audio amplitude
     const bins = 160;
     const voice = audioAmplitude * 5;
     for(let i=0;i<bins;i++){
@@ -413,7 +413,6 @@ function drawFFT(depth){
       } else if(mode==='FM'){
         val = Math.abs(Math.sin(t*12 + depth*voice)) * (1 + depth*0.4) * 0.5;
       } else {
-        // SSB: energy on USB (right of center) or LSB (left of center)
         const sideShift = ssbSide==='USB' ? (i/bins - 0.5)*2 : (0.5 - i/bins)*2;
         val = Math.max(0, sideShift) * voice * depth * 0.9;
       }
@@ -425,7 +424,6 @@ function drawFFT(depth){
       ctxFFT.fillRect(x, splitY-bh-4, 3, bh);
     }
     ctxFFT.shadowBlur=0;
-    // Carrier spike for AM/FM
     if(mode !== 'SSB'){
       ctxFFT.fillStyle='#00f7b2';
       ctxFFT.shadowColor='#00f7b2'; ctxFFT.shadowBlur=16;
@@ -433,7 +431,6 @@ function drawFFT(depth){
       ctxFFT.shadowBlur=0;
     }
   } else {
-    // Synthetic mode: draw clean spectral lines based on modulation type
     const barW = 5;
     const drawSpike = (xNorm, ampNorm, col) => {
       const x = xNorm * w;
@@ -444,17 +441,13 @@ function drawFFT(depth){
       ctxFFT.shadowBlur = 0;
     };
 
-    // Normalize fm relative to fc for display (fc = center = 0.5)
-    // We spread sidebands visually around center by fm/fc ratio, clamped nicely
     const spread = Math.min(0.18, (fm / fc) * 1.5 + 0.06);
 
     if(mode === 'AM'){
-      // Carrier + symmetric USB + LSB
-      drawSpike(0.5, 0.85, '#00f7b2');                   // carrier
-      drawSpike(0.5 + spread, depth * 0.55, '#ff6b6b');  // USB
-      drawSpike(0.5 - spread, depth * 0.55, '#ff6b6b');  // LSB
+      drawSpike(0.5, 0.85, '#00f7b2');
+      drawSpike(0.5 + spread, depth * 0.55, '#ff6b6b');
+      drawSpike(0.5 - spread, depth * 0.55, '#ff6b6b');
     } else if(mode === 'FM'){
-      // Carrier + multiple Bessel-like sidebands
       drawSpike(0.5, 0.85, '#00f7b2');
       for(let k=1; k<=3; k++){
         const amp = depth * 0.6 / k;
@@ -462,10 +455,8 @@ function drawFFT(depth){
         drawSpike(0.5 - spread*k, amp, '#b388ff');
       }
     } else {
-      // SSB: single sideband only, NO carrier
       if(ssbSide === 'USB'){
         drawSpike(0.5 + spread, depth * 0.85, '#ffd166');
-        // ghost carrier suppressed indicator
         ctxFFT.fillStyle='rgba(0,247,178,0.15)';
         ctxFFT.fillRect(0.5*w - barW/2, splitY - rfBarH*0.12 - 4, barW, rfBarH*0.12);
       } else {
@@ -476,7 +467,6 @@ function drawFFT(depth){
     }
   }
 
-  // === Demodulated Spectrum (bottom) ===
   const demodSpec = computeDemodSpectrum(depth, fm);
   const demodAreaH = h - splitY - 20;
   const bw = Math.max(Math.floor(w / demodSpec.length), 2);
@@ -493,7 +483,6 @@ function drawFFT(depth){
   }
   ctxFFT.shadowBlur=0;
 
-  // Labels
   ctxFFT.fillStyle='rgba(255,255,255,.2)';
   ctxFFT.font='9px JetBrains Mono';
   ctxFFT.fillText('fc-Δf',4,h-4);
@@ -513,14 +502,12 @@ function animate(){
   document.getElementById('carrierEq').textContent = rf.name;
   document.getElementById('messageEq').textContent = realAudioMode ? 'LIVE ΗΧΟΣ' : (voiceSlider.value/1000).toFixed(1)+' kHz';
   document.getElementById('modEq').textContent = mode==='SSB' ? (ssbSide==='USB'?'USB RF':'LSB RF') : mode + ' RF';
-  // Update FFT label
   document.getElementById('fftLabel').textContent = mode==='SSB'
     ? (ssbSide==='USB' ? 'USB — Άνω Πλευρική Ζώνη' : 'LSB — Κάτω Πλευρική Ζώνη')
     : mode==='FM' ? 'FM — Πολλαπλές Πλευρικές Ζώνες'
     : 'AM — Φέρον + ΑΠΖ + ΚΠΖ';
 
   if(realAudioMode && analyser){
-    // Ensure audioPCM matches analyser size
     if(audioPCM.length !== analyser.frequencyBinCount) audioPCM=new Float32Array(analyser.frequencyBinCount);
     if(!audioData || audioData.length !== analyser.frequencyBinCount) audioData=new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteTimeDomainData(audioData);
@@ -533,7 +520,6 @@ function animate(){
     audioAmplitude = sum / audioData.length;
     audioFill.style.width = Math.min(100, audioAmplitude*500) + '%';
   } else {
-    // Decay meter to zero when no audio
     audioAmplitude *= 0.92;
     audioFill.style.width = Math.min(100, audioAmplitude*500) + '%';
   }
@@ -572,9 +558,13 @@ function animate(){
   requestAnimationFrame(animate);
 }
 
-window.addEventListener('resize', () => [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas));
+window.addEventListener('resize', () => {
+  [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas);
+});
+
 [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas);
 presetHF();
+updateModeButtons();
 animate();
 </script>
 
