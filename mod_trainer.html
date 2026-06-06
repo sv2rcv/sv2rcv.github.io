@@ -127,7 +127,7 @@ canvas{width:100%;display:block;}
         <input type="range" id="voiceSlider" min="300" max="3000" value="2400" step="100">
       </div>
       <div class="ctrl">
-        <div class="ctrl-head"><span id="depthTitle">Βάθος AM</span><span id="depthLabel">0.70</span></div>
+        <div class="ctrl-head"><span id="depthTitle">Βάθος AM / Απόκλιση FM</span><span id="depthLabel">0.70</span></div>
         <input type="range" id="depthSlider" min="0" max="2" value="0.7" step="0.05">
       </div>
 
@@ -161,7 +161,6 @@ canvas{width:100%;display:block;}
         <canvas id="modCanvas" height="130"></canvas>
       </div>
 
-      <!-- FFT -->
       <div class="card fourier">
         <div class="card-head">
           <div class="card-title">Φάσμα Fourier — RF + Αποδιαμορφωμένο Σήμα</div>
@@ -275,14 +274,14 @@ function updateViewButtons(){
   document.getElementById('freezeBtn').classList.toggle('active', !isRolling);
 }
 
-function presetHF(){ carrierSlider.value=0; voiceSlider.value=2400; depthSlider.value=.7; mode='SSB'; ssbSide='USB'; fmPhase=0; updateModeButtons(); }
-function presetVHF(){ carrierSlider.value=1; voiceSlider.value=1000; depthSlider.value=1.2; mode='FM'; fmPhase=0; updateModeButtons(); }
-function presetUHF(){ carrierSlider.value=2; voiceSlider.value=1800; depthSlider.value=1.5; mode='FM'; fmPhase=0; updateModeButtons(); }
-function presetAM(){ carrierSlider.value=3; voiceSlider.value=800; depthSlider.value=.9; mode='AM'; fmPhase=0; updateModeButtons(); }
+function presetHF(){ carrierSlider.value=0; voiceSlider.value=2400; depthSlider.value=.7; mode='SSB'; ssbSide='USB'; updateModeButtons(); }
+function presetVHF(){ carrierSlider.value=1; voiceSlider.value=1000; depthSlider.value=1.2; mode='FM'; updateModeButtons(); }
+function presetUHF(){ carrierSlider.value=2; voiceSlider.value=1800; depthSlider.value=1.5; mode='FM'; updateModeButtons(); }
+function presetAM(){ carrierSlider.value=3; voiceSlider.value=800; depthSlider.value=.9; mode='AM'; updateModeButtons(); }
 
-document.getElementById('amBtn').onclick =()=>{ mode='AM'; fmPhase=0; updateModeButtons(); };
-document.getElementById('fmBtn').onclick =()=>{ mode='FM'; fmPhase=0; updateModeButtons(); };
-document.getElementById('ssbBtn').onclick=()=>{ mode='SSB'; fmPhase=0; updateModeButtons(); };
+document.getElementById('amBtn').onclick =()=>{ mode='AM'; updateModeButtons(); };
+document.getElementById('fmBtn').onclick =()=>{ mode='FM'; updateModeButtons(); };
+document.getElementById('ssbBtn').onclick=()=>{ mode='SSB'; updateModeButtons(); };
 document.getElementById('usbBtn').onclick=()=>{ ssbSide='USB'; updateModeButtons(); };
 document.getElementById('lsbBtn').onclick=()=>{ ssbSide='LSB'; updateModeButtons(); };
 
@@ -292,7 +291,6 @@ function updateModeButtons(){
   document.getElementById('ssbBtn').classList.toggle('active', mode==='SSB');
 
   document.getElementById('ssbControls').style.display = mode==='SSB' ? 'block' : 'none';
-  
   document.getElementById('usbBtn').classList.toggle('active', ssbSide==='USB');
   document.getElementById('lsbBtn').classList.toggle('active', ssbSide==='LSB');
 
@@ -349,16 +347,12 @@ function drawWave(ctx,canvas,color,fn){
   ctx.stroke();ctx.shadowBlur=0;
 }
 
-// ... (οι συναρτήσεις computeDemodSpectrum, drawFFT, animate μένουν ίδιες όπως στο αρχικό)
-
 function computeDemodSpectrum(depth, fm){
   const bins=180;
   const result=new Float32Array(bins);
   if(!realAudioMode){
     const voiceFreqNorm = fm / 4.0;
-    const peakNorm = mode==='SSB' && ssbSide==='LSB'
-      ? Math.max(0.02, voiceFreqNorm * 0.75)
-      : voiceFreqNorm;
+    const peakNorm = mode==='SSB' && ssbSide==='LSB' ? Math.max(0.02, voiceFreqNorm * 0.75) : voiceFreqNorm;
     for(let i=0;i<bins;i++){
       const normFreq=i/bins;
       const dist=normFreq-peakNorm;
@@ -539,9 +533,9 @@ function animate(){
   } else if(mode==='FM'){
     drawWave(ctxMod, modCanvas, '#b388ff', t => {
       const v = realAudioMode ? audioPCM[Math.floor((t*120)%audioPCM.length)] : Math.sin(t*fm*3);
-      fmPhase += v * depth * 0.025;
-      fmPhase = fmPhase % (Math.PI * 2);
-      return Math.sin(t * rf.visual + fmPhase);
+      // Βελτιωμένη FM: η απόκλιση φάσης εξαρτάται από το στιγμιαίο σήμα (όχι αθροιστική)
+      const deviation = v * depth * 4;   // μεγαλύτερη απόκλιση για καλύτερη ορατότητα
+      return Math.sin(t * rf.visual + deviation);
     });
   } else {
     drawWave(ctxMod, modCanvas, '#ffd166', t => {
@@ -558,12 +552,9 @@ function animate(){
   requestAnimationFrame(animate);
 }
 
-window.addEventListener('resize', () => {
-  [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas);
-});
-
+window.addEventListener('resize', () => [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas));
 [carrierCanvas,messageCanvas,modCanvas,fftCanvas].forEach(resizeCanvas);
-presetHF();
+presetVHF();           // Ξεκινάμε με FM για να δεις αμέσως
 updateModeButtons();
 animate();
 </script>
